@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>智學網成績排序工具</title>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -387,7 +387,11 @@
         }
         
         function displayMessage(message, panelElement, type = 'error') {
-            panelElement.innerHTML = `<div class="message ${type}">${message}</div>`;
+            panelElement.textContent = '';
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message', type);
+            messageElement.textContent = message;
+            panelElement.appendChild(messageElement);
         }
 
         function copyToClipboard(text, buttonElement, originalText) {
@@ -454,27 +458,10 @@
             if (copyAllBtn) {
                 copyAllBtn.addEventListener('click', () => {
                     const currentData = processedData[tabIndex];
-                    const showMissingCheckbox = document.getElementById(`show-missing-${tabIndex}`);
-                    const fillZeroCheckbox = document.getElementById(`fill-zero-${tabIndex}`);
-                    const showMissing = showMissingCheckbox ? showMissingCheckbox.checked : false;
-                    const fillZero = fillZeroCheckbox ? fillZeroCheckbox.checked : false;
-
-                    let displayData = transformScores(currentData, fillZero);
-
-                    if (showMissing) {
-                        const missingIds = findMissingStudentIds(currentData);
-                        const missingStudents = missingIds.map(id => ({
-                            id: id,
-                            name: '',
-                            score: fillZero ? 0 : -1,
-                            isMissing: true
-                        }));
-                        displayData = [...displayData, ...missingStudents];
-                        displayData.sort((a, b) => a.id - b.id);
-                    }
+                    const displayData = getDisplayData(currentData, panelElement);
 
                     let tableText = "班級學號\t姓名\t總分\n";
-                    tableText += displayData.map(row => `${row.id}\t${row.name}\t${row.score === -1 ? '' : row.score}`).join('\n');
+                    tableText += displayData.map(row => [row.id, row.name, row.score === -1 ? '' : row.score].map(formatCopyCell).join('\t')).join('\n');
                     copyToClipboard(tableText, copyAllBtn, '複製整個表格');
                 });
             }
@@ -482,24 +469,7 @@
             if (copyScoresBtn) {
                 copyScoresBtn.addEventListener('click', () => {
                     const currentData = processedData[tabIndex];
-                    const showMissingCheckbox = document.getElementById(`show-missing-${tabIndex}`);
-                    const fillZeroCheckbox = document.getElementById(`fill-zero-${tabIndex}`);
-                    const showMissing = showMissingCheckbox ? showMissingCheckbox.checked : false;
-                    const fillZero = fillZeroCheckbox ? fillZeroCheckbox.checked : false;
-
-                    let displayData = transformScores(currentData, fillZero);
-
-                    if (showMissing) {
-                        const missingIds = findMissingStudentIds(currentData);
-                        const missingStudents = missingIds.map(id => ({
-                            id: id,
-                            name: '',
-                            score: fillZero ? 0 : -1,
-                            isMissing: true
-                        }));
-                        displayData = [...displayData, ...missingStudents];
-                        displayData.sort((a, b) => a.id - b.id);
-                    }
+                    const displayData = getDisplayData(currentData, panelElement);
 
                     const scoresText = displayData.map(row => row.score === -1 ? '' : row.score).join('\n');
                     copyToClipboard(scoresText, copyScoresBtn, '僅複製總分');
@@ -525,19 +495,10 @@
                 btn.addEventListener('click', (e) => {
                     if (e.target.classList.contains('sort-active')) return;
 
-                    const sortBy = e.target.dataset.sortBy;
-                    const dataToSort = processedData[tabIndex];
-
-                    if (sortBy === 'id') {
-                        dataToSort.sort((a, b) => a.id - b.id);
-                    } else if (sortBy === 'score') {
-                        dataToSort.sort((a, b) => b.score - a.score);
-                    }
-
                     panelElement.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('sort-active'));
                     e.target.classList.add('sort-active');
 
-                    updateTableBody(panelElement, dataToSort);
+                    updateTableBody(panelElement, processedData[tabIndex]);
                 });
             });
         }
@@ -569,10 +530,12 @@
             }));
         }
 
-        function updateTableBody(panelElement, data) {
-            const tbody = panelElement.querySelector('.result-table tbody');
-            if (!tbody) return;
+        function formatCopyCell(value) {
+            const text = String(value).replace(/[\t\r\n]+/g, ' ');
+            return /^[=+\-@]/.test(text.trimStart()) ? `'${text}` : text;
+        }
 
+        function getDisplayData(data, panelElement) {
             const tabIndex = panelElement.dataset.tabIndex;
             const showMissingCheckbox = document.getElementById(`show-missing-${tabIndex}`);
             const fillZeroCheckbox = document.getElementById(`fill-zero-${tabIndex}`);
@@ -580,12 +543,10 @@
             const showMissing = showMissingCheckbox ? showMissingCheckbox.checked : false;
             const fillZero = fillZeroCheckbox ? fillZeroCheckbox.checked : false;
 
-            let displayData = transformScores(data, fillZero);
+            let displayData = [...transformScores(data, fillZero)];
 
             if (showMissing) {
                 const missingIds = findMissingStudentIds(data);
-                const existingIds = new Set(displayData.map(row => row.id));
-
                 const missingStudents = missingIds.map(id => ({
                     id: id,
                     name: '',
@@ -593,11 +554,19 @@
                     isMissing: true
                 }));
 
-                const allStudents = [...displayData, ...missingStudents];
-                allStudents.sort((a, b) => a.id - b.id);
-                displayData = allStudents;
+                displayData = [...displayData, ...missingStudents];
             }
 
+            const sortBy = panelElement.querySelector('.sort-btn.sort-active')?.dataset.sortBy || 'id';
+            displayData.sort((a, b) => sortBy === 'score' ? b.score - a.score : a.id - b.id);
+            return displayData;
+        }
+
+        function updateTableBody(panelElement, data) {
+            const tbody = panelElement.querySelector('.result-table tbody');
+            if (!tbody) return;
+
+            const displayData = getDisplayData(data, panelElement);
             tbody.innerHTML = '';
 
             displayData.forEach(row => {
@@ -605,11 +574,11 @@
                 if (row.isMissing) {
                     tr.classList.add('missing-student');
                 }
-                tr.innerHTML = `
-                    <td>${row.id}</td>
-                    <td>${row.name}</td>
-                    <td>${row.score === -1 ? '' : row.score}</td>
-                `;
+                [row.id, row.name, row.score === -1 ? '' : row.score].forEach(value => {
+                    const td = document.createElement('td');
+                    td.textContent = value;
+                    tr.appendChild(td);
+                });
                 tbody.appendChild(tr);
             });
         }
