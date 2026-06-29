@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智學網成績排序工具</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            background: #fff;
+            padding: 30px 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            text-align: center;
+        }
+
+        h1 {
+            color: #1a73e8;
+            margin-top: 0;
+            margin-bottom: 30px;
+        }
+
+        #drop-zone {
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+            padding: 40px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background-color: #fafafa;
+        }
+
+        #drop-zone.dragover {
+            border-color: #1a73e8;
+            background-color: #e8f0fe;
+        }
+
+        #drop-zone p {
+            margin: 0;
+            font-size: 1.1em;
+            color: #5f6368;
+        }
+        
+        #upload-btn {
+            background-color: #1a73e8;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            margin-top: 20px;
+            transition: background-color 0.3s;
+        }
+        
+        #upload-btn:hover {
+            background-color: #155ab6;
+        }
+
+        #file-input {
+            display: none;
+        }
+
+        #result-container {
+            margin-top: 40px;
+            text-align: left;
+            min-height: 50px; 
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        
+        .tabs-nav {
+            display: flex;
+            flex-wrap: wrap;
+            border-bottom: 2px solid #ddd;
+            margin-bottom: -2px;
+        }
+
+        .tab-btn {
+            padding: 10px 15px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.3s ease;
+            color: #5f6368;
+            font-size: 1em;
+            word-break: break-all;
+            max-width: 150px;
+        }
+        
+        .tab-btn.long-filename {
+            font-size: 0.8em;
+            padding: 8px 10px;
+        }
+
+        .tab-btn:hover {
+            background-color: #f0f2f5;
+        }
+
+        .tab-btn.active {
+            color: #1a73e8;
+            border-bottom-color: #1a73e8;
+            font-weight: 500;
+        }
+        
+        .tab-btn.error-tab {
+             color: #d93025;
+             border-bottom-color: #d93025;
+        }
+
+        .tabs-content {
+            padding-top: 20px;
+        }
+        .tab-panel {
+            display: none;
+        }
+        .tab-panel.active {
+            display: block;
+        }
+
+        .result-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed; 
+        }
+
+        .result-table th, .result-table td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: center;
+            word-break: break-all;
+        }
+
+        .result-table th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+
+        .action-buttons-container {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px; 
+            margin-bottom: 15px;
+        }
+
+        .action-btn {
+            background-color: #fff;
+            color: #333;
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.3s;
+        }
+
+        .action-btn:hover {
+            background-color: #f0f2f5;
+            border-color: #999;
+        }
+        
+        .action-btn.sort-active {
+             background-color: #1a73e8;
+             color: white;
+             border-color: #1a73e8;
+        }
+
+        .action-btn.copied {
+            background-color: #1e8e3e;
+            color: white;
+            border-color: #1e8e3e;
+        }
+
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            margin-right: 15px;
+        }
+
+        .checkbox-container input[type="checkbox"] {
+            margin-right: 5px;
+        }
+
+        .missing-student {
+            background-color: #f5f5f5;
+            font-style: italic;
+            color: #888;
+        }
+        
+        .message {
+            font-size: 1.1em;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: left; 
+            animation: fadeIn 0.5s ease-in-out;
+            word-break: break-all;
+        }
+        
+        .error {
+            color: #d93025;
+            background-color: #fce8e6;
+            border: 1px solid #d93025;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>智學網成績排序工具</h1>
+        
+        <div id="drop-zone">
+            <p>將智學網導出的單科成績表檔案拖曳到此處（支持多個成績表）</p>
+            <p style="font-size: 0.9em; margin-top: 10px;">或</p>
+            <button id="upload-btn">點擊選擇檔案</button>
+            <input type="file" id="file-input" accept=".xlsx, .xls" multiple>
+        </div>
+
+        <div id="result-container">
+            <!-- 處理結果會顯示在這裡 -->
+        </div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const uploadBtn = document.getElementById('upload-btn');
+        const resultContainer = document.getElementById('result-container');
+        
+        let processedData = [];
+
+        uploadBtn.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('click', (e) => {
+            if (e.target.id === 'upload-btn') return;
+            fileInput.click();
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) handleFiles(e.target.files);
+        });
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
+        });
+
+        async function handleFiles(files) {
+            resultContainer.innerHTML = ''; 
+            processedData = []; 
+
+            const tabNav = document.createElement('div');
+            tabNav.className = 'tabs-nav';
+
+            const tabContent = document.createElement('div');
+            tabContent.className = 'tabs-content';
+
+            resultContainer.append(tabNav, tabContent);
+            
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const tabButton = document.createElement('button');
+                tabButton.className = 'tab-btn';
+                tabButton.textContent = file.name;
+                tabButton.dataset.tabIndex = i;
+                
+                if (file.name.length > 15) {
+                    tabButton.classList.add('long-filename');
+                }
+
+                const tabPanel = document.createElement('div');
+                tabPanel.className = 'tab-panel';
+                tabPanel.dataset.tabIndex = i;
+
+                tabNav.appendChild(tabButton);
+                tabContent.appendChild(tabPanel);
+
+                if (i === 0) {
+                    tabButton.classList.add('active');
+                    tabPanel.classList.add('active');
+                }
+
+                try {
+                    const jsonData = await processSingleFile(file);
+                    processedData[i] = jsonData; 
+                    displayResultTable(jsonData, tabPanel, i); 
+                } catch (error) {
+                    processedData[i] = null; 
+                    displayMessage(error.message, tabPanel, 'error');
+                    tabButton.classList.add('error-tab');
+                }
+            }
+
+            tabNav.addEventListener('click', (e) => {
+                if (e.target.classList.contains('tab-btn')) {
+                    const tabIndex = e.target.dataset.tabIndex;
+                    
+                    tabNav.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+                    e.target.classList.add('active');
+
+                    tabContent.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+                    tabContent.querySelector(`.tab-panel[data-tab-index="${tabIndex}"]`).classList.add('active');
+                }
+            });
+        }
+        
+        function processSingleFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsArrayBuffer(file);
+
+                reader.onload = (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const targetSheetName = '得分明细';
+
+                        if (!workbook.SheetNames.includes(targetSheetName)) {
+                           throw new Error(`錯誤：檔案 "${file.name}" 中找不到名為「${targetSheetName}」的工作表。`);
+                        }
+
+                        const worksheet = workbook.Sheets[targetSheetName];
+                        const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+
+                        if (rawData.length < 2) { 
+                             throw new Error(`錯誤：檔案 "${file.name}" 的工作表中少於兩行資料。`);
+                        }
+                        
+                        const headerRow = rawData[1].map(cell => String(cell).trim());
+                        const idIndex = headerRow.indexOf('班内学号');
+                        const nameIndex = headerRow.indexOf('姓名');
+                        const scoreIndex = headerRow.indexOf('总分');
+
+                        if (idIndex === -1 || nameIndex === -1 || scoreIndex === -1) {
+                            let missingKey = (idIndex === -1) ? '班内学号' : (nameIndex === -1) ? '姓名' : '总分';
+                            throw new Error(`錯誤：檔案 "${file.name}" 的第二行中找不到必要的欄位「${missingKey}」。`);
+                        }
+
+                        const dataRows = rawData.slice(2);
+                        const jsonData = [];
+                        for (const row of dataRows) {
+                            const idValue = String(row[idIndex]).trim();
+                            if (!idValue || isNaN(Number(idValue))) continue;
+                            
+                            const rawScore = String(row[scoreIndex]).trim();
+                            jsonData.push({
+                                id: Number(idValue),
+                                name: String(row[nameIndex]).trim(),
+                                score: isFinite(rawScore) && rawScore !== '' ? parseFloat(rawScore) : -1
+                            });
+                        }
+
+                        if (jsonData.length === 0) {
+                           throw new Error(`錯誤：檔案 "${file.name}" 的標題列下方找不到有效的學生資料。`);
+                        }
+
+                        jsonData.sort((a, b) => a.id - b.id);
+                        resolve(jsonData);
+                    } catch (error) {
+                        reject(error);
+                    }
+                };
+                reader.onerror = () => reject(new Error(`無法讀取檔案 "${file.name}"。`));
+            });
+        }
+        
+        function displayMessage(message, panelElement, type = 'error') {
+            panelElement.innerHTML = `<div class="message ${type}">${message}</div>`;
+        }
+
+        function copyToClipboard(text, buttonElement, originalText) {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed'; 
+            textArea.style.top = '-9999px';
+            document.body.appendChild(textArea);
+            textArea.select();
+            
+            try {
+                document.execCommand('copy');
+                buttonElement.textContent = '已複製！';
+                buttonElement.classList.add('copied');
+                setTimeout(() => {
+                   buttonElement.textContent = originalText;
+                   buttonElement.classList.remove('copied');
+                }, 2000); 
+            } catch (err) {
+                console.error('無法複製:', err);
+                buttonElement.textContent = '複製失敗';
+            } finally {
+                document.body.removeChild(textArea);
+            }
+        }
+
+        function displayResultTable(data, panelElement, tabIndex) {
+            panelElement.innerHTML = `
+                <div class="action-buttons-container">
+                    <span>排序方式：</span>
+                    <button class="action-btn sort-btn sort-active" data-sort-by="id">按學號</button>
+                    <button class="action-btn sort-btn" data-sort-by="score">按總分</button>
+                    <div class="checkbox-container">
+                        <input type="checkbox" id="show-missing-${tabIndex}">
+                        <label for="show-missing-${tabIndex}">顯示缺失學生</label>
+                    </div>
+                    <div class="checkbox-container">
+                        <input type="checkbox" id="fill-zero-${tabIndex}">
+                        <label for="fill-zero-${tabIndex}">空白分數填0</label>
+                    </div>
+                    <span style="flex-grow: 1;"></span>
+                    <button class="action-btn copy-scores-btn">僅複製總分</button>
+                    <button class="action-btn copy-all-btn">複製整個表格</button>
+                </div>
+                <table class="result-table">
+                    <thead>
+                        <tr>
+                            <th>班級學號</th>
+                            <th>姓名</th>
+                            <th>總分</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+            `;
+            
+            updateTableBody(panelElement, data);
+
+            const copyAllBtn = panelElement.querySelector('.copy-all-btn');
+            const copyScoresBtn = panelElement.querySelector('.copy-scores-btn');
+            const sortButtons = panelElement.querySelectorAll('.sort-btn');
+
+            if (copyAllBtn) {
+                copyAllBtn.addEventListener('click', () => {
+                    const currentData = processedData[tabIndex];
+                    const showMissingCheckbox = document.getElementById(`show-missing-${tabIndex}`);
+                    const fillZeroCheckbox = document.getElementById(`fill-zero-${tabIndex}`);
+                    const showMissing = showMissingCheckbox ? showMissingCheckbox.checked : false;
+                    const fillZero = fillZeroCheckbox ? fillZeroCheckbox.checked : false;
+
+                    let displayData = transformScores(currentData, fillZero);
+
+                    if (showMissing) {
+                        const missingIds = findMissingStudentIds(currentData);
+                        const missingStudents = missingIds.map(id => ({
+                            id: id,
+                            name: '',
+                            score: fillZero ? 0 : -1,
+                            isMissing: true
+                        }));
+                        displayData = [...displayData, ...missingStudents];
+                        displayData.sort((a, b) => a.id - b.id);
+                    }
+
+                    let tableText = "班級學號\t姓名\t總分\n";
+                    tableText += displayData.map(row => `${row.id}\t${row.name}\t${row.score === -1 ? '' : row.score}`).join('\n');
+                    copyToClipboard(tableText, copyAllBtn, '複製整個表格');
+                });
+            }
+
+            if (copyScoresBtn) {
+                copyScoresBtn.addEventListener('click', () => {
+                    const currentData = processedData[tabIndex];
+                    const showMissingCheckbox = document.getElementById(`show-missing-${tabIndex}`);
+                    const fillZeroCheckbox = document.getElementById(`fill-zero-${tabIndex}`);
+                    const showMissing = showMissingCheckbox ? showMissingCheckbox.checked : false;
+                    const fillZero = fillZeroCheckbox ? fillZeroCheckbox.checked : false;
+
+                    let displayData = transformScores(currentData, fillZero);
+
+                    if (showMissing) {
+                        const missingIds = findMissingStudentIds(currentData);
+                        const missingStudents = missingIds.map(id => ({
+                            id: id,
+                            name: '',
+                            score: fillZero ? 0 : -1,
+                            isMissing: true
+                        }));
+                        displayData = [...displayData, ...missingStudents];
+                        displayData.sort((a, b) => a.id - b.id);
+                    }
+
+                    const scoresText = displayData.map(row => row.score === -1 ? '' : row.score).join('\n');
+                    copyToClipboard(scoresText, copyScoresBtn, '僅複製總分');
+                });
+            }
+            
+            const showMissingCheckbox = document.getElementById(`show-missing-${tabIndex}`);
+            const fillZeroCheckbox = document.getElementById(`fill-zero-${tabIndex}`);
+
+            if (showMissingCheckbox) {
+                showMissingCheckbox.addEventListener('change', () => {
+                    updateTableBody(panelElement, processedData[tabIndex]);
+                });
+            }
+
+            if (fillZeroCheckbox) {
+                fillZeroCheckbox.addEventListener('change', () => {
+                    updateTableBody(panelElement, processedData[tabIndex]);
+                });
+            }
+
+            sortButtons.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    if (e.target.classList.contains('sort-active')) return;
+
+                    const sortBy = e.target.dataset.sortBy;
+                    const dataToSort = processedData[tabIndex];
+
+                    if (sortBy === 'id') {
+                        dataToSort.sort((a, b) => a.id - b.id);
+                    } else if (sortBy === 'score') {
+                        dataToSort.sort((a, b) => b.score - a.score);
+                    }
+
+                    panelElement.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('sort-active'));
+                    e.target.classList.add('sort-active');
+
+                    updateTableBody(panelElement, dataToSort);
+                });
+            });
+        }
+
+        function findMissingStudentIds(data) {
+            if (data.length === 0) return [];
+
+            const studentIds = data.map(row => row.id).sort((a, b) => a - b);
+            const minId = studentIds[0];
+            const maxId = studentIds[studentIds.length - 1];
+            const existingIds = new Set(studentIds);
+            const missingIds = [];
+
+            for (let id = minId; id <= maxId; id++) {
+                if (!existingIds.has(id)) {
+                    missingIds.push(id);
+                }
+            }
+
+            return missingIds;
+        }
+
+        function transformScores(data, fillZero) {
+            if (!fillZero) return data;
+
+            return data.map(row => ({
+                ...row,
+                score: row.score === -1 ? 0 : row.score
+            }));
+        }
+
+        function updateTableBody(panelElement, data) {
+            const tbody = panelElement.querySelector('.result-table tbody');
+            if (!tbody) return;
+
+            const tabIndex = panelElement.dataset.tabIndex;
+            const showMissingCheckbox = document.getElementById(`show-missing-${tabIndex}`);
+            const fillZeroCheckbox = document.getElementById(`fill-zero-${tabIndex}`);
+
+            const showMissing = showMissingCheckbox ? showMissingCheckbox.checked : false;
+            const fillZero = fillZeroCheckbox ? fillZeroCheckbox.checked : false;
+
+            let displayData = transformScores(data, fillZero);
+
+            if (showMissing) {
+                const missingIds = findMissingStudentIds(data);
+                const existingIds = new Set(displayData.map(row => row.id));
+
+                const missingStudents = missingIds.map(id => ({
+                    id: id,
+                    name: '',
+                    score: fillZero ? 0 : -1,
+                    isMissing: true
+                }));
+
+                const allStudents = [...displayData, ...missingStudents];
+                allStudents.sort((a, b) => a.id - b.id);
+                displayData = allStudents;
+            }
+
+            tbody.innerHTML = '';
+
+            displayData.forEach(row => {
+                const tr = document.createElement('tr');
+                if (row.isMissing) {
+                    tr.classList.add('missing-student');
+                }
+                tr.innerHTML = `
+                    <td>${row.id}</td>
+                    <td>${row.name}</td>
+                    <td>${row.score === -1 ? '' : row.score}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+    </script>
+</body>
+
+</html>
