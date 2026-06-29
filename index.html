@@ -335,10 +335,11 @@
                     try {
                         const data = new Uint8Array(e.target.result);
                         const workbook = XLSX.read(data, { type: 'array' });
-                        const targetSheetName = '得分明细';
+                        const targetSheetNames = ['得分明细', '得分明細'];
+                        const targetSheetName = targetSheetNames.find(name => workbook.SheetNames.includes(name));
 
-                        if (!workbook.SheetNames.includes(targetSheetName)) {
-                           throw new Error(`錯誤：檔案 "${file.name}" 中找不到名為「${targetSheetName}」的工作表。`);
+                        if (!targetSheetName) {
+                           throw new Error(`錯誤：檔案 "${file.name}" 中找不到名為「${targetSheetNames.join(' / ')}」的工作表。`);
                         }
 
                         const worksheet = workbook.Sheets[targetSheetName];
@@ -349,12 +350,17 @@
                         }
                         
                         const headerRow = rawData[1].map(cell => String(cell).trim());
-                        const idIndex = headerRow.indexOf('班内学号');
-                        const nameIndex = headerRow.indexOf('姓名');
-                        const scoreIndex = headerRow.indexOf('总分');
+                        const columnAliases = {
+                            id: ['班内学号', '班內學號'],
+                            name: ['姓名'],
+                            score: ['总分', '總分']
+                        };
+                        const idIndex = findHeaderIndex(headerRow, columnAliases.id);
+                        const nameIndex = findHeaderIndex(headerRow, columnAliases.name);
+                        const scoreIndex = findHeaderIndex(headerRow, columnAliases.score);
 
                         if (idIndex === -1 || nameIndex === -1 || scoreIndex === -1) {
-                            let missingKey = (idIndex === -1) ? '班内学号' : (nameIndex === -1) ? '姓名' : '总分';
+                            let missingKey = (idIndex === -1) ? columnAliases.id.join(' / ') : (nameIndex === -1) ? columnAliases.name.join(' / ') : columnAliases.score.join(' / ');
                             throw new Error(`錯誤：檔案 "${file.name}" 的第二行中找不到必要的欄位「${missingKey}」。`);
                         }
 
@@ -384,6 +390,11 @@
                 };
                 reader.onerror = () => reject(new Error(`無法讀取檔案 "${file.name}"。`));
             });
+        }
+
+        function findHeaderIndex(headerRow, aliases) {
+            const index = aliases.map(name => headerRow.indexOf(name)).find(i => i !== -1);
+            return index ?? -1;
         }
         
         function displayMessage(message, panelElement, type = 'error') {
